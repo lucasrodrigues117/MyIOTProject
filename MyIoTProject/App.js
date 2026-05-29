@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { env } from 'expo-env';
 import { StyleSheet, View, Text } from 'react-native';
 
 import MQTTService from './src/services/mqttService';
+import { saveSensorReading, saveLightState } from './src/services/supabaseService';
 import StatusModal from './src/components/StatusModal';
 import LightControl from './src/components/LightControl';
 import Gauges from './src/components/Gauges';
@@ -17,12 +17,11 @@ export default function App() {
   const [hum, setHum] = useState(0);
 
   const mqttConfig = {
-    host: env.MQTT_HOST,
-    port: parseInt(env.MQTT_PORT, 10),
-    path: env.MQTT_PATH,
-    user: env.MQTT_USER,
-    pass: env.MQTT_PASS,
-    clientId: `RN_App_${Math.random()}`,
+    host: process.env.EXPO_PUBLIC_MQTT_HOST,
+    port: Number(process.env.EXPO_PUBLIC_MQTT_PORT || 8884),
+    user: process.env.EXPO_PUBLIC_MQTT_USER,
+    pass: process.env.EXPO_PUBLIC_MQTT_PASS,
+    clientId: `RN_App_${Math.random()}`
   };
 
   const startConnection = () => {
@@ -33,17 +32,26 @@ export default function App() {
 
       (topic, message) => {
         switch (topic) {
-          case 'casa/temp':
-            setTemp(parseFloat(message));
+          case 'casa/temp': {
+            const value = parseFloat(message);
+            setTemp(value);
+            saveSensorReading(topic, value);
             break;
+          }
 
-          case 'casa/umid':
-            setHum(parseFloat(message));
+          case 'casa/umid': {
+            const value = parseFloat(message);
+            setHum(value);
+            saveSensorReading(topic, value);
             break;
+          }
 
-          case 'casa/luz':
-            setIsLightOn(message === '1');
+          case 'casa/luz': {
+            const isOn = message === '1';
+            setIsLightOn(isOn);
+            saveSensorReading(topic, message);
             break;
+          }
 
           default:
             break;
@@ -72,15 +80,14 @@ export default function App() {
 
     mqtt.publish('casa/luz', newState);
     setIsLightOn(!isLightOn);
+    saveLightState(!isLightOn);
   };
 
   useEffect(() => {
     startConnection();
 
     return () => {
-      if (mqtt.disconnect) {
-        mqtt.disconnect();
-      }
+      mqtt.disconnect?.();
     };
   }, []);
 
